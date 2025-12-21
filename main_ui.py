@@ -32,7 +32,7 @@ class App(customtkinter.CTk):
         self.bg_color = self.cget("fg_color") #customtkinterの背景色
 
         #アドレス設定ファイルの読込
-        json_file=open("address_setting.json","r")
+        json_file=open("address_setting.json","r",encoding="utf-8")
         self.address_dict=json.load(json_file)
         json_file.close()
 

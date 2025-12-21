@@ -1,1 +1,28 @@
-{"DATAPATH": {"LOTSTART_IN": "//10.1.64.25/SiCFTP/30_Lapis_semiconductor_Miyazaki/Rohm-Lmzk/Device-1/Åöë™íËÉfÅ[É^âºíuÇ´/takahashiâºíuÇ´/LotStartIn", "LOTSTART_IN_HASUU": "C:/testspace/LotStartInHasuu", "LOTSTART_OUT": "C:/testspace/LotStartOut", "LOTSTART_TMP": "c:\\testspace\\LotStartTmp", "LOTEND_IN": "c:\\testspace\\LotEndIn", "LOTEND_OUT": "c:\\testspace\\LotEndOut", "LOTEND_OUT_HASUU": "C:/testspace/LotEndOutHasuu", "LOTEND_TMP": "c:\\testspace\\LotEndTmp", "RAWDATA_OUT": "c:\\testspace\\LotEndRawData"}, "MANUAL_DATAPATH": {"LOTSTART_IN": "C:\\testspace\\LotStartIn", "LOTSTART_IN_HASUU": "C:/testspace/LotStartInHasuu", "LOTSTART_OUT": "C:\\testspace\\LotStartOut", "LOTSTART_TMP": "c:\\testspace\\LotStartTmp", "LOTEND_IN": "c:\\testspace\\LotEndIn", "LOTEND_OUT": "c:\\testspace\\LotEndOut", "LOTEND_OUT_HASUU": "C:/testspace/LotEndOutHasuu", "LOTEND_TMP": "c:\\testspace\\LotEndTmp", "RAWDATA_OUT": "c:\\testspace\\LotEndRawData"}, "SOCKET": {"IP": "127.0.0.1", "PORT": "12345"}}
+{
+    "DATAPATH": {
+        "LOTSTART_IN": "//10.1.64.25/SiCFTP/30_Lapis_semiconductor_Miyazaki/Rohm-Lmzk/Device-1/ÔøΩÔøΩÔøΩÔøΩÔøΩÔøΩfÔøΩ[ÔøΩ^ÔøΩÔøΩÔøΩuÔøΩÔøΩ/takahashiÔøΩÔøΩÔøΩuÔøΩÔøΩ/LotStartIn",
+        "LOTSTART_IN_HASUU": "C:/testspace/LotStartInHasuu",
+        "LOTSTART_OUT": "C:/testspace/LotStartOut",
+        "LOTSTART_TMP": "c:\\testspace\\LotStartTmp",
+        "LOTEND_IN": "c:\\testspace\\LotEndIn",
+        "LOTEND_OUT": "c:\\testspace\\LotEndOut",
+        "LOTEND_OUT_HASUU": "C:/testspace/LotEndOutHasuu",
+        "LOTEND_TMP": "c:\\testspace\\LotEndTmp",
+        "RAWDATA_OUT": "c:\\testspace\\LotEndRawData"
+    },
+    "MANUAL_DATAPATH": {
+        "LOTSTART_IN": "C:\\testspace\\LotStartIn",
+        "LOTSTART_IN_HASUU": "C:/testspace/LotStartInHasuu",
+        "LOTSTART_OUT": "C:\\testspace\\LotStartOut",
+        "LOTSTART_TMP": "c:\\testspace\\LotStartTmp",
+        "LOTEND_IN": "c:\\testspace\\LotEndIn",
+        "LOTEND_OUT": "c:\\testspace\\LotEndOut",
+        "LOTEND_OUT_HASUU": "C:/testspace/LotEndOutHasuu",
+        "LOTEND_TMP": "c:\\testspace\\LotEndTmp",
+        "RAWDATA_OUT": "c:\\testspace\\LotEndRawData"
+    },
+    "SOCKET": {
+        "IP": "127.0.0.1",
+        "PORT": "12345"
+    }
+}
