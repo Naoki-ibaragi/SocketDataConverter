@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 from . import settings
 import glob
 from .header import chikugo_sorter_header
@@ -104,17 +105,16 @@ def get_rank_from_line(line):
     return rank
 
 #上位のoracle dbから子ロット情報データを取得する
-def get_child_lot_data_from_db(parent_lot_name):
+def get_child_lot_data_from_db(app,parent_work_order):
     # Oracle Database 11g以前のバージョンに接続するため、thick接続モードを使用
     # thick接続モードを初期化（Oracle Instant Clientが必要）
     child_lot_list=[]
-    print("上位DBへの接続を開始")
+    normal_message_handling(app,f"上位への接続を開始")
     try:
         # Oracle Instant Clientのパスを指定する場合（必要に応じて変更）
         oracledb.init_oracle_client(lib_dir=r"C:\\oracle\\instantclient_23_0")
     except Exception as e:
-        print(f"thick接続モードの初期化に失敗: {e}")
-        raise RuntimeError("Oracle Instant Clientの初期化に失敗しました。Oracle 11gへの接続にはthick接続モードが必須です") from e
+        raise RuntimeError("Oracle Instant Clientの初期化に失敗しました") from e
 
     # Oracle Databaseへの接続設定
     username = "atpusr"
@@ -129,15 +129,103 @@ def get_child_lot_data_from_db(parent_lot_name):
         dsn = oracledb.makedsn(host, port, sid=sid)
         connection = oracledb.connect(user=username, password=password, dsn=dsn)
 
-        print("Oracle Databaseに正常に接続しました")
+        normal_message_handling(app,"Oracle Databaseに正常に接続しました")
 
         # カーソルを作成してクエリを実行
         cursor = connection.cursor()
 
-        # 簡単なクエリの例
-        cursor.execute("SELECT SYSDATE FROM DUAL")
-        result = cursor.fetchone()
-        print(f"現在の日時: {result[0]}")
+        sql_query_1 = """
+        SELECT B.NO_ATP_LOT
+        FROM ATPCIM.CV_INFO_LOT B
+        WHERE B.NO_ATP_WORK_ORDER = :no_atp_lot
+        """
+
+        # クエリを実行（バインド変数を使用）
+        cursor.execute(sql_query_1, no_atp_lot=parent_work_order)
+
+        # 結果を取得して表示
+        results = cursor.fetchall()
+        no_atp_lot_value=results[0][0]
+        parent_lot_name=no_atp_lot_value
+        normal_message_handling(app,"親ATPロットの取得完了:{parent_lot_name}")
+
+         # SQLクエリ（バインド変数を使用）
+        sql_query_atp_lot = """
+        SELECT B.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
+            SELECT NO_ATP_LOT
+            FROM ATPCIM.CV_INFO_LOT
+            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
+            (SELECT B.NO_SYS_LOT_DVPRT
+            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
+            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
+        )
+        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
+        UNION
+        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
+        FROM ATPCIM.CV_INFO_LOT C WHERE C.NO_ATP_LOT IN (
+            SELECT B.NO_SYS_LOT_DVPRT
+            FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B
+            WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
+                SELECT NO_ATP_LOT
+                FROM ATPCIM.CV_INFO_LOT
+                WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
+                (SELECT B.NO_SYS_LOT_DVPRT
+                FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
+                WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+                AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
+            )
+            AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
+        )
+        UNION
+        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
+            SELECT NO_ATP_LOT
+            FROM ATPCIM.CV_INFO_LOT
+            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
+            (SELECT B.NO_SYS_LOT_DVPRT
+            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
+            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
+        )
+        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
+        AND B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT
+        UNION
+        SELECT D.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
+        FROM ATPCIM.CV_INFO_LOT D
+        WHERE D.NO_ATP_LOT IN
+        (SELECT C.NO_SYS_LOT_DVPRT
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
+            SELECT NO_ATP_LOT
+            FROM ATPCIM.CV_INFO_LOT
+            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
+            (SELECT B.NO_SYS_LOT_DVPRT
+            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
+            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
+        )
+        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
+        AND B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT
+        AND SUBSTR(C.NO_ATP_LOT,10,3) <> '.00')
+        GROUP BY NO_ATP_WORK_ORDER
+        ORDER BY BUNRUI DESC, NO_ATP_WORK_ORDER ASC
+        """
+
+        # クエリを実行（バインド変数を使用）
+        cursor.execute(sql_query_atp_lot, no_atp_lot=parent_lot_name)
+
+        # 結果を取得して表示
+        results = cursor.fetchall()
+
+        #子ATP工注名のリストを作成
+        for row in results:
+            normal_message_handling(app,f"NO_ATP_WORK_ORDER: {row[0]}, BUNRUI: {row[1]}")
+            if row[1]=="HASUU":
+                child_lot_list.append(row[0])
 
         # カーソルをクローズ
         cursor.close()
@@ -150,7 +238,7 @@ def get_child_lot_data_from_db(parent_lot_name):
         if 'connection' in locals():
             connection.close()
             print("接続をクローズしました")
-    
+        
     return child_lot_list
 
 def taping_lot_start_2(app,data_dict,manual_flag=False):
@@ -162,15 +250,15 @@ def taping_lot_start_2(app,data_dict,manual_flag=False):
     work_quantity=data_dict["quantity"] #仕掛け数
     operator_id=data_dict["operator_id"] #オペレーターID
 
-    #子ロット一覧を入れるリスト
-    child_lotname_list=[]
-
     #子ロット情報を上位のDBから取得する
+    start=time.perf_counter()
     try:
-        child_lotname_list=get_child_lot_data_from_db(lot_name)
+        child_lotname_list=get_child_lot_data_from_db(app,lot_name)
     except Exception as e:
         error_handling(app,f"上位からの子ロット情報データ取得に失敗しました:{input_folder_path}")
         return
+    end=time.perf_counter()
+    normal_message_handling(app,f"上位からのデータ取得時間 : {end-start:.6f}秒")
     
     if len(child_lotname_list)==0:
         error_handling(app,f"親ロット{lot_name}に紐づいた子ロットが存在しません")
