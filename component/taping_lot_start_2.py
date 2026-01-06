@@ -108,7 +108,8 @@ def get_rank_from_line(line):
 def get_child_lot_data_from_db(app,parent_work_order):
     # Oracle Database 11g以前のバージョンに接続するため、thick接続モードを使用
     # thick接続モードを初期化（Oracle Instant Clientが必要）
-    child_lot_list=[]
+    child_lot_list_main=[]
+    child_lot_list_hasuu=[]
     normal_message_handling(app,f"上位への接続を開始")
     try:
         # Oracle Instant Clientのパスを指定する場合（必要に応じて変更）
@@ -147,71 +148,108 @@ def get_child_lot_data_from_db(app,parent_work_order):
         results = cursor.fetchall()
         no_atp_lot_value=results[0][0]
         parent_lot_name=no_atp_lot_value
-        normal_message_handling(app,"親ATPロットの取得完了:{parent_lot_name}")
+        normal_message_handling(app,f"親ATPロットの取得完了:{parent_lot_name}")
 
          # SQLクエリ（バインド変数を使用）
         sql_query_atp_lot = """
-        SELECT B.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
-        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B
-        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
-            SELECT NO_ATP_LOT
-            FROM ATPCIM.CV_INFO_LOT
-            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
-            (SELECT B.NO_SYS_LOT_DVPRT
-            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
-            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
-            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
-        )
-        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
-        UNION
-        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
+        --Assy後倉庫のロットと統合分抽出
+        SELECT NO_ATP_WORK_ORDER, max(BUNRUI) AS BUNRUI FROM ( 
+        --対象ロットのソースロット
+        SELECT B.NO_ATP_WORK_ORDER, 'MAIN' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV = :no_atp_lot
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        UNION 
+        --対象ロットのソースロットの親
+        SELECT C.NO_ATP_WORK_ORDER, 'MAIN' AS BUNRUI 
         FROM ATPCIM.CV_INFO_LOT C WHERE C.NO_ATP_LOT IN (
-            SELECT B.NO_SYS_LOT_DVPRT
-            FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B
-            WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
-                SELECT NO_ATP_LOT
-                FROM ATPCIM.CV_INFO_LOT
-                WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
-                (SELECT B.NO_SYS_LOT_DVPRT
-                FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
-                WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
-                AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
-            )
-            AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
-        )
-        UNION
-        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
-        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C
-        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
-            SELECT NO_ATP_LOT
-            FROM ATPCIM.CV_INFO_LOT
-            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
-            (SELECT B.NO_SYS_LOT_DVPRT
-            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
-            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
-            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
-        )
-        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
-        AND B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT
-        UNION
-        SELECT D.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI
-        FROM ATPCIM.CV_INFO_LOT D
-        WHERE D.NO_ATP_LOT IN
-        (SELECT C.NO_SYS_LOT_DVPRT
-        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C
-        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (
-            SELECT NO_ATP_LOT
-            FROM ATPCIM.CV_INFO_LOT
-            WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN
-            (SELECT B.NO_SYS_LOT_DVPRT
-            FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B
-            WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
-            AND A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)
-        )
-        AND A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT
-        AND B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT
-        AND SUBSTR(C.NO_ATP_LOT,10,3) <> '.00')
-        GROUP BY NO_ATP_WORK_ORDER
+        SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV = :no_atp_lot
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT) 
+        UNION 
+        --対象ロットのソースロットの統合ロット
+        SELECT C.NO_ATP_WORK_ORDER, 'MAIN' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV = :no_atp_lot
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        AND   B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT 
+        UNION 
+        --対象ロットのソースロットの統合ロットの親
+        SELECT D.NO_ATP_WORK_ORDER, 'MAIN' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_LOT D 
+        WHERE D.NO_ATP_LOT IN 
+        (SELECT C.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV = :no_atp_lot
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        AND   B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT 
+        AND   SUBSTRB(C.NO_ATP_LOT,10,3) <> '.00') 
+        UNION 
+        --対象ロットに統合された端数ロットの親
+        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_LOT C 
+        WHERE C.CD_LINE = 'L1' AND C.NO_ATP_LOT IN ( 
+        SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_INFO_LOT B 
+        WHERE B.CD_LINE = 'L1' AND B.NO_ATP_LOT IN 
+        (SELECT A.NO_LOT_CHILD
+        FROM ATPCIM.CV_HIST_LOT_MERGE A
+        WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot)) 
+        UNION 
+        --対象ロットに統合された端数ロットの親から検索
+        SELECT B.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (SELECT NO_ATP_LOT 
+        FROM ATPCIM.CV_INFO_LOT 
+        WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN 
+        (SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+        AND   A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)) 
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        UNION 
+        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_LOT C WHERE C.NO_ATP_LOT IN ( 
+        SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (SELECT NO_ATP_LOT 
+        FROM ATPCIM.CV_INFO_LOT 
+        WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN 
+        (SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+        AND   A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)) 
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT) 
+        UNION 
+        SELECT C.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (SELECT NO_ATP_LOT 
+        FROM ATPCIM.CV_INFO_LOT 
+        WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN 
+        (SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+        AND   A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)) 
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        AND   B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT 
+        UNION 
+        SELECT D.NO_ATP_WORK_ORDER, 'HASUU' AS BUNRUI 
+        FROM ATPCIM.CV_INFO_LOT D 
+        WHERE D.NO_ATP_LOT IN 
+        (SELECT C.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_INFO_RESERVE A, ATPCIM.CV_HIST_LOT_MERGE B, ATPCIM.CV_INFO_LOT C 
+        WHERE A.CD_LINE_INV = 'L1' AND A.NO_ATP_LOT_INV IN (SELECT NO_ATP_LOT 
+        FROM ATPCIM.CV_INFO_LOT 
+        WHERE CD_LINE = 'L1' AND NO_ATP_LOT IN 
+        (SELECT B.NO_SYS_LOT_DVPRT 
+        FROM ATPCIM.CV_HIST_LOT_MERGE A, ATPCIM.CV_INFO_LOT B 
+        WHERE A.CD_LINE = 'L1' AND A.NO_ATP_LOT = :no_atp_lot
+        AND   A.CD_LINE = B.CD_LINE AND A.NO_LOT_CHILD = B.NO_ATP_LOT)) 
+        AND   A.CD_LINE_INV = B.CD_LINE AND A.NO_ATP_LOT_STK = B.NO_ATP_LOT 
+        AND   B.CD_LINE = C.CD_LINE AND B.NO_LOT_CHILD = C.NO_ATP_LOT 
+        AND   SUBSTRB(C.NO_ATP_LOT,10,3) <> '.00')) 
+        GROUP BY NO_ATP_WORK_ORDER 
         ORDER BY BUNRUI DESC, NO_ATP_WORK_ORDER ASC
         """
 
@@ -224,8 +262,10 @@ def get_child_lot_data_from_db(app,parent_work_order):
         #子ATP工注名のリストを作成
         for row in results:
             normal_message_handling(app,f"NO_ATP_WORK_ORDER: {row[0]}, BUNRUI: {row[1]}")
-            if row[1]=="HASUU":
-                child_lot_list.append(row[0])
+            if row[1]=="MAIN":
+                child_lot_list_main.append(row[0])
+            elif row[1]=="HASUU":
+                child_lot_list_hasuu.append(row[0])
 
         # カーソルをクローズ
         cursor.close()
@@ -239,7 +279,7 @@ def get_child_lot_data_from_db(app,parent_work_order):
             connection.close()
             print("接続をクローズしました")
         
-    return child_lot_list
+    return child_lot_list_main,child_lot_list_hasuu
 
 def taping_lot_start_2(app,data_dict,manual_flag=False):
     lot_name=data_dict["lotno"] #対象のロット番号
@@ -253,44 +293,47 @@ def taping_lot_start_2(app,data_dict,manual_flag=False):
     #子ロット情報を上位のDBから取得する
     start=time.perf_counter()
     try:
-        child_lotname_list=get_child_lot_data_from_db(app,lot_name)
+        child_lotname_list_main,child_lotname_list_hasuu=get_child_lot_data_from_db(app,lot_name)
     except Exception as e:
         error_handling(app,f"上位からの子ロット情報データ取得に失敗しました:{input_folder_path}")
         return
     end=time.perf_counter()
     normal_message_handling(app,f"上位からのデータ取得時間 : {end-start:.6f}秒")
     
-    if len(child_lotname_list)==0:
+    if len(child_lotname_list_main)+len(child_lotname_list_hasuu)==0:
         error_handling(app,f"親ロット{lot_name}に紐づいた子ロットが存在しません")
         return
     else:
-        normal_message_handling(app,f"親ロット{lot_name}の子ロット一覧:{child_lotname_list}")
+        normal_message_handling(app,f"親ロット{lot_name}の子ロット一覧(MAIN):{child_lotname_list_main}")
+        normal_message_handling(app,f"親ロット{lot_name}の子ロット一覧(HASUU):{child_lotname_list_hasuu}")
 
     if not manual_flag:
         #子ロットNoは複数あるので、input_folder_path,input_folder_path_hasuuはリストにする
         input_folder_path_list=[]
         input_folder_path_hasuu_list=[]
-        for child_lot in child_lotname_list:
+        for child_lot in child_lotname_list_main:
             input_folder_path_list.append(os.path.join(app.address_dict["DATAPATH"]["LOTSTART_IN"],child_lot)) #編集前データ置き場
+        for child_lot in child_lotname_list_hasuu:
             input_folder_path_hasuu_list.append(os.path.join(app.address_dict["DATAPATH"]["LOTSTART_IN_HASUU"],child_lot)) #編集前データ置き場(端数)
         output_folder_path=app.address_dict["DATAPATH"]["LOTSTART_OUT"] #編集後データ置き場
         tmp_folder_path=app.address_dict["DATAPATH"]["LOTSTART_TMP"] #一時作業場所
     else:
         input_folder_path_list=[]
         input_folder_path_hasuu_list=[]
-        for child_lot in child_lotname_list:
+        for child_lot in child_lotname_list_main:
             input_folder_path_list.append(os.path.join(app.address_dict["DATAPATH"]["LOTSTART_IN"],child_lot)) #編集前データ置き場
+        for child_lot in child_lotname_list_hasuu:
             input_folder_path_hasuu_list.append(os.path.join(app.address_dict["DATAPATH"]["LOTSTART_IN_HASUU"],child_lot)) #編集前データ置き場(端数)
         output_folder_path=app.address_dict["MANUAL_DATAPATH"]["LOTSTART_OUT"] #編集後データ置き場
         tmp_folder_path=app.address_dict["MANUAL_DATAPATH"]["LOTSTART_TMP"] #一時作業場所
 
-    normal_message_handling(app,f"{lot_name}の清武⇒筑後仕様への分類前データの変換を実施")
+    normal_message_handling(app,f"{lot_name}の清武⇒筑後仕様へのテーピング前データの変換を実施")
 
     #IN側パスのフォルダ有無確認
-    for input_folder_path in input_folder_path_list:
-        if not os.path.exists(input_folder_path):
-            error_handling(app,f"LotStart時の参照データ先が存在しません:{input_folder_path}")
-            return
+    #for input_folder_path in input_folder_path_list:
+    #    if not os.path.exists(input_folder_path):
+    #        error_handling(app,f"LotStart時の参照データ先が存在しません:{input_folder_path}")
+    #        return
 
     #OUT側パスのフォルダ有無確認
     if not os.path.exists(output_folder_path):
@@ -338,28 +381,34 @@ def taping_lot_start_2(app,data_dict,manual_flag=False):
     normal_message_handling(app,f"IN側のパスのトレイデータをtmpフォルダにコピーします")
     try:
         for input_folder_path in input_folder_path_list:
-            csv_file_list=glob.glob(os.path.join(input_folder_path,"*.csv"))
-            csv_file_list=[ csv_file for csv_file in csv_file_list if len(os.path.basename(csv_file).split(".")[0])==20 ] #良品トレイデータかの判定
-            for csv_file in csv_file_list:
-                shutil.copy(csv_file,os.path.join(tmp_folder_path,os.path.basename(csv_file)))
+            if os.path.exists(input_folder_path):
+                csv_file_list=glob.glob(os.path.join(input_folder_path,"*.csv"))
+                csv_file_list=[ csv_file for csv_file in csv_file_list if len(os.path.basename(csv_file).split(".")[0])==20 ] #良品トレイデータかの判定
+                for csv_file in csv_file_list:
+                    shutil.copy(csv_file,os.path.join(tmp_folder_path,os.path.basename(csv_file)))
     except Exception as e:
         error_handling(app,f"INファイルのコピーで異常が発生しました:{e})")
         return
     normal_message_handling(app,f"IN側のパスのトレイデータをtmpフォルダへのコピーが完了しました")
 
     #端数トレイ用のフォルダがあればそれもサーチする
-    for input_folder_path_hasuu in input_folder_path_hasuu_list:
-        if os.path.exists(input_folder_path_hasuu):
-            normal_message_handling(app,f"端数フォルダパス:{input_folder_path_hasuu} のトレイデータをtmpフォルダにコピーします")
-            try:
-                csv_file_list=glob.glob(os.path.join(input_folder_path_hasuu,"*.csv"))
-                csv_file_list=[ csv_file for csv_file in csv_file_list if len(os.path.basename(csv_file).split(".")[0])==20] #良品トレイデータかの判定
-                for csv_file in csv_file_list:
-                    shutil.copy(csv_file,os.path.join(tmp_folder_path,os.path.basename(csv_file)))
-            except Exception as e:
-                error_handling(app,f"端数フォルダのファイルのコピーで異常が発生しました:{e})")
-                return
-            normal_message_handling(app,f"端数フォルダパスのトレイデータをtmpフォルダへのコピーが完了しました")
+    try:
+        for input_folder_path_hasuu in input_folder_path_hasuu_list:
+            normal_message_handling(app,f"端数フォルダパス:{input_folder_path_hasuu}")
+            if os.path.exists(input_folder_path_hasuu):
+                normal_message_handling(app,f"端数フォルダパス:{input_folder_path_hasuu} のトレイデータをtmpフォルダにコピーします")
+                try:
+                    csv_file_list=glob.glob(os.path.join(input_folder_path_hasuu,"*.csv"))
+                    csv_file_list=[ csv_file for csv_file in csv_file_list if len(os.path.basename(csv_file).split(".")[0])==20] #良品トレイデータかの判定
+                    for csv_file in csv_file_list:
+                        shutil.copy(csv_file,os.path.join(tmp_folder_path,os.path.basename(csv_file)))
+                except Exception as e:
+                    error_handling(app,f"端数フォルダのファイルのコピーで異常が発生しました:{e})")
+                    return
+                normal_message_handling(app,f"端数フォルダパスのトレイデータをtmpフォルダへのコピーが完了しました")
+    except Exception as e:
+        error_handling(app,f"端数ファイルのコピーで異常が発生しました:{e})")
+        return
 
     #データ変換を実施
     csv_file_list=glob.glob(os.path.join(tmp_folder_path,"*.csv"))

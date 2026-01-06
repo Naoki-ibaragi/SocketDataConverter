@@ -47,7 +47,6 @@ def start_main(app,data_dict,manual_flag=False):
             with open("lot_merge_typename_list.csv","r") as f:
                 type_name_list=f.readlines()
                 type_name_list=[t.strip() for t in type_name_list ]
-            print(type_name_list)
         except Exception as e:
             error_handling(app,f"ロット統合機種名リストの読み込みに失敗しました:{e}")
             return

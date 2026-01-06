@@ -122,7 +122,7 @@ def taping_lot_start(app,data_dict,manual_flag=False):
         output_folder_path=app.address_dict["MANUAL_DATAPATH"]["LOTSTART_OUT"] #編集後データ置き場
         tmp_folder_path=app.address_dict["MANUAL_DATAPATH"]["LOTSTART_TMP"] #一時作業場所
 
-    normal_message_handling(app,f"{lot_name}の清武⇒筑後仕様への分類前データの変換を実施")
+    normal_message_handling(app,f"{lot_name}の清武⇒筑後仕様へのテーピング前データの変換を実施")
 
     #IN側パスのフォルダ有無確認
     if not os.path.exists(input_folder_path):
